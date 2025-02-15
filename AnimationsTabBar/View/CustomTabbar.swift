@@ -5,19 +5,26 @@
 //  Created by Bayram Yeleç on 14.02.2025.
 //
 
+protocol CustomTabbarDelegate: AnyObject {
+    func didSelectTab(at index: Int)
+}
+
 import UIKit
+import SnapKit
 
 class CustomTabbar: UIView {
+    
+    weak var delegate: CustomTabbarDelegate?
     
     private lazy var backView: UIView = {
         let view = UIView()
         view.backgroundColor = .darkGray
-        view.layer.cornerRadius = 20
+        view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
     
-    private var stackView: UIStackView = {
+    private lazy var stackView: UIStackView = {
         let stackView = UIStackView()
         stackView.axis = .horizontal
         stackView.distribution = .fillEqually
@@ -30,6 +37,7 @@ class CustomTabbar: UIView {
         button.setImage(UIImage(systemName: "house"), for: .normal)
         button.tintColor = .white
         button.translatesAutoresizingMaskIntoConstraints = false
+        button.tag = 1
         button.addTarget(self, action: #selector(createButtonAction), for: .touchUpInside)
         return button
     }()
@@ -40,22 +48,19 @@ class CustomTabbar: UIView {
     private lazy var selectedTabView: UIView = {
         let view = UIView()
         view.backgroundColor = .darkGray
-        view.layer.cornerRadius = 35
-        view.translatesAutoresizingMaskIntoConstraints = false
+        view.layer.cornerRadius = 40
         return view
     }()
     
     private lazy var selectedTabView2: UIView = {
         let view = UIView()
-        view.backgroundColor = .red
+        view.backgroundColor = .systemPink
         view.layer.cornerRadius = 20
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
     
     private var selectedTabIndex: Int = 1
-    private var selectedTabViewXConstraint: NSLayoutConstraint!
-    private var selectedTabViewWidthConstraint: NSLayoutConstraint!
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -70,54 +75,39 @@ class CustomTabbar: UIView {
         return CGSize(width: UIView.noIntrinsicMetric, height: 80)
     }
     
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let tabWidth = backView.frame.width / 4
-        selectedTabViewWidthConstraint.constant = tabWidth
-    }
-    
     private func setupUI() {
         addSubview(backView)
         addSubview(stackView)
         backView.addSubview(selectedTabView)
         selectedTabView.addSubview(selectedTabView2)
-        setupConstraints()
-    }
-
-    private func setupConstraints() {
-        NSLayoutConstraint.activate([
-            backView.topAnchor.constraint(equalTo: self.topAnchor, constant: 20),
-            backView.bottomAnchor.constraint(equalTo: self.bottomAnchor),
-            backView.leftAnchor.constraint(equalTo: self.leftAnchor),
-            backView.rightAnchor.constraint(equalTo: self.rightAnchor),
-
-            stackView.topAnchor.constraint(equalTo: backView.topAnchor),
-            stackView.bottomAnchor.constraint(equalTo: backView.bottomAnchor),
-            stackView.leftAnchor.constraint(equalTo: backView.leftAnchor),
-            stackView.rightAnchor.constraint(equalTo: backView.rightAnchor),
-        ])
-        
         [tab1, tab2, tab3, tab4].forEach {
             stackView.addArrangedSubview($0)
         }
-        
-        selectedTabViewXConstraint = selectedTabView.centerXAnchor.constraint(equalTo: tab1.centerXAnchor)
-        selectedTabViewWidthConstraint = selectedTabView.widthAnchor.constraint(equalToConstant: self.frame.width / 4)
-        
-        NSLayoutConstraint.activate([
-            selectedTabView.heightAnchor.constraint(equalToConstant: 70),
-            selectedTabViewWidthConstraint,
-            selectedTabView.bottomAnchor.constraint(equalTo: stackView.bottomAnchor),
-            selectedTabViewXConstraint,
-            
-            selectedTabView2.centerXAnchor.constraint(equalTo: selectedTabView.centerXAnchor),
-            selectedTabView2.centerYAnchor.constraint(equalTo: selectedTabView.centerYAnchor),
-            selectedTabView2.widthAnchor.constraint(equalToConstant: 50),
-            selectedTabView2.heightAnchor.constraint(equalToConstant: 40)
-        ])
+        setupConstraints()
     }
-
     
+    private func setupConstraints() {
+        backView.snp.makeConstraints { make in
+            make.left.right.bottom.equalToSuperview()
+            make.top.equalToSuperview()
+        }
+        stackView.snp.makeConstraints { make in
+            make.left.right.top.equalToSuperview()
+            make.bottom.equalToSuperview()
+        }
+        selectedTabView.snp.makeConstraints { make in
+            make.height.equalTo(80)
+            make.width.equalTo(backView.snp.width).multipliedBy(0.25)
+            make.bottom.equalTo(stackView.snp.bottom).inset(10)
+            make.centerX.equalTo(tab1.snp.centerX)
+        }
+        selectedTabView2.snp.makeConstraints { make in
+            make.center.equalTo(selectedTabView.snp.center)
+            make.width.equalTo(50)
+            make.height.equalTo(50)
+        }
+        tab1.transform = CGAffineTransform(translationX: 0, y: -10)
+    }
     
     private func createButton(image: String, tag: Int) -> UIButton {
         let button = UIButton()
@@ -132,6 +122,7 @@ class CustomTabbar: UIView {
         updateSelection(sender)
         moveSelectedView(sender)
         selectedTabIndex = sender.tag
+        delegate?.didSelectTab(at: selectedTabIndex)
     }
     
     private func updateSelection(_ selectedButton: UIButton) {
@@ -141,14 +132,17 @@ class CustomTabbar: UIView {
     }
     
     private func moveSelectedView(_ selectedButton: UIButton) {
-        selectedTabViewXConstraint.isActive = false
-        selectedTabViewXConstraint = selectedTabView.centerXAnchor.constraint(equalTo: selectedButton.centerXAnchor)
-        
-        NSLayoutConstraint.activate([
-            selectedTabViewXConstraint
-        ])
-        
         UIView.animate(withDuration: 0.3) {
+            self.selectedTabView.snp.remakeConstraints { make in
+                make.height.equalTo(80)
+                make.width.equalTo(self.backView.snp.width).multipliedBy(0.25)
+                make.bottom.equalTo(self.stackView.snp.bottom).inset(10)
+                make.centerX.equalTo(selectedButton.snp.centerX)
+            }
+            [self.tab1, self.tab2, self.tab3, self.tab4].forEach { button in
+                button.transform = .identity
+            }
+            selectedButton.transform = CGAffineTransform(translationX: 0, y: -10)
             self.layoutIfNeeded()
         }
     }
